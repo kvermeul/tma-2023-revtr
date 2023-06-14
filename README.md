@@ -11,7 +11,7 @@ to monitor some network paths.
 ## Q1. Find a problem in the network.
 
 Here is a list of ping measurements that we run for you between PEERING servers to some destinations.
-This is similar to what an operator wanting to troubleshoot potential problems between their servers and their clients. 
+This is similar to what an operator would do as a first step to troubleshoot potential problems between their servers and their clients. 
 
 We give you the geolocation of the servers and the destinations.
 
