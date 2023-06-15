@@ -11,6 +11,7 @@ API_KEY = ""
 # pyasn_util_convert.py --single <Downloaded RIB File> <ipasn_db_file_name> and use <ipasn_db_file_name> below
 ip2asn = load_ip_to_asn("resources/bgpdumps/2023_05_05.dat")
 
+label_revtrs = "debug_tma"
 
 def get_sources():
 
@@ -53,15 +54,20 @@ def run_revtrs(source_destination_pair, label):
     print(results.json())
     return results
 
-def fetch_revtr(batch_id):
+def fetch_revtr(batch_id, label):
 
     """
     Fetch the results of a batch of revtrs
     :param batch_id:
     :return:
     """
+    # XOR
+    assert(bool(batch_id is not None) ^ bool(label != ""))
+    if batch_id is not None:
+        url = f"https://revtr.ccs.neu.edu/api/v1/revtr?batchid={batch_id}"
+    else:
+        url = f"https://revtr.ccs.neu.edu/api/v1/revtr?label={label}"
 
-    url = f"https://revtr.ccs.neu.edu/api/v1/revtr?batchid={batch_id}"
     headers = {
         "Revtr-Key": API_KEY
     }
@@ -111,11 +117,10 @@ def example():
     for source in sources["srcs"][:1]:
         revtr_source_destination_pairs.append((source["ip"], destinations[0]))
 
-    label = "debug_tma"
-    results = run_revtrs(revtr_source_destination_pairs, label)
+    results = run_revtrs(revtr_source_destination_pairs, label_revtrs)
 
 def example_fetch():
-    revtrs = fetch_revtr(86)
+    revtrs = fetch_revtr(None, label_revtrs)
     is_trustworthy = contains_interdomain_assume_symmetry(revtrs[0], ip2asn)
     print_revtrs(revtrs)
     print(is_trustworthy)
