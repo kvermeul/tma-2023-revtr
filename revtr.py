@@ -177,7 +177,7 @@ class RevTrMeasurement:
 
         loop_index = loop_indexes[0]
         hops = self.orig_hops[:first_idx]
-        hops.extend(hops[loop_index:])
-        assert self.hops[first_idx] == self.orig_hops[loop_index]
-        assert self.hops[before_idx].asn == self.hops[first_idx].asn
+        hops.extend(self.orig_hops[loop_index:])
+        assert hops[first_idx] == self.orig_hops[loop_index]
+        assert hops[before_idx].asn == hops[first_idx].asn
         return hops

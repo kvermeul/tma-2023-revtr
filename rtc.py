@@ -37,6 +37,7 @@ def create_parser():
     parser_launch = sc.add_parser("launch", help="Execute a reverse traceroute")
     parser_batch = sc.add_parser("batch", help="Execute a batch of reverse traceroutes")
     parser_fetch = sc.add_parser("fetch", help="Fetch reverse traceroutes")
+    parser_print = sc.add_parser("print", help="Print reverse traceroutes from file")
 
     parser_atlas.add_argument(
         "--vp",
@@ -127,12 +128,20 @@ def create_parser():
         default=False,
         help="Print reverse traceroute on screen",
     )
+
+    parser_print.add_argument(
+        "--file",
+        dest="file",
+        action="store",
+        metavar="JSONL",
+        type=pathlib.Path,
+        required=True,
+        help="File containing reverse traceroute JSON (one per line)",
+    )
     return parser
 
 
 def main():
-    resource.setrlimit(resource.RLIMIT_AS, (1 << 29, 1 << 29))
-    resource.setrlimit(resource.RLIMIT_FSIZE, (1 << 32, 1 << 32))
     logging.basicConfig(format="%(message)s", level=logging.DEBUG)
 
     parser = create_parser()
@@ -168,6 +177,15 @@ def main():
                 measurement = RevTrMeasurement(revtr, ip2asn, namedb)
                 print(measurement)
             r = ""
+    elif opts.command == "print":
+        with open(opts.file, encoding="utf8") as fd:
+            ip2asn = pyasn.pyasn(str(PYASN_DATA))
+            namedb = asnames.ASNamesDB(ASNAMES_DATA)
+            for line in fd:
+                jsondata = json.loads(line.strip())
+                measurement = RevTrMeasurement(jsondata, ip2asn, namedb)
+                print(measurement)
+        r = ""
     else:
         raise RuntimeError("Unreachable")
 
