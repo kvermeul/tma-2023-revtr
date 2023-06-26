@@ -127,12 +127,24 @@ def create_parser():
         default=False,
         help="Print reverse traceroute on screen",
     )
+
+    parser_fetch.add_argument(
+        "--file",
+        dest="file",
+        action="store",
+        metavar="PATH",
+        type=pathlib.Path,
+        required=True,
+        help="Json file to store the revtr",
+    )
+
     return parser
 
 
 def main():
-    resource.setrlimit(resource.RLIMIT_AS, (1 << 29, 1 << 29))
-    resource.setrlimit(resource.RLIMIT_FSIZE, (1 << 32, 1 << 32))
+
+    # resource.setrlimit(resource.RLIMIT_AS, (1 << 29, 1 << 29))
+    # resource.setrlimit(resource.RLIMIT_FSIZE, (1 << 32, 1 << 32))
     logging.basicConfig(format="%(message)s", level=logging.DEBUG)
 
     parser = create_parser()
@@ -168,6 +180,9 @@ def main():
                 measurement = RevTrMeasurement(revtr, ip2asn, namedb)
                 print(measurement)
             r = ""
+        elif opts.file:
+            with open(opts.file, "w") as f:
+                json.dump(r, f)
     else:
         raise RuntimeError("Unreachable")
 

@@ -1,12 +1,12 @@
-from __future__ import annotations
-
+# from __future__ import annotations
+import requests
 import dataclasses
 import enum
 import json
 from ipaddress import IPv4Address
 from typing import Optional
 
-import requests
+
 
 DEFAULT_TIMEOUT = 16.0
 
@@ -77,9 +77,10 @@ class RevTrApi:
 
     def fetch(self, label: str):
         url = f"https://{self.ctrl}/api/v1/revtr?label={label}"
-        resp = requests.get(url, headers=self.header, timeout=DEFAULT_TIMEOUT)
+        resp = requests.get(url, headers=self.header)
         resp.raise_for_status()
-        return resp.json()
+        result = resp.json()
+        return result
 
 
 class RevTrHopType(enum.IntEnum):
@@ -132,7 +133,7 @@ class RevTrMeasurement:
             cc = namedb.cc(asn)
             self.orig_hops.append(RevTrHop(ip, asn, asname, cc, hoptype))
 
-        self.is_trustworthy: bool = self.contains_interdomain_assume_symmetry()
+        self.is_trustworthy: bool = not self.contains_interdomain_assume_symmetry()
         self.hops: list[RevTrHop] = self.remove_as_loop_from_revtr_path()
 
     def __str__(self) -> str:
@@ -177,7 +178,7 @@ class RevTrMeasurement:
 
         loop_index = loop_indexes[0]
         hops = self.orig_hops[:first_idx]
-        hops.extend(hops[loop_index:])
-        assert self.hops[first_idx] == self.orig_hops[loop_index]
-        assert self.hops[before_idx].asn == self.hops[first_idx].asn
+        hops.extend(self.orig_hops[loop_index:])
+        assert hops[first_idx] == self.orig_hops[loop_index]
+        assert hops[before_idx].asn == hops[first_idx].asn
         return hops
