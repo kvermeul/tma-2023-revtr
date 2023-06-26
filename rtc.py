@@ -37,6 +37,7 @@ def create_parser():
     parser_launch = sc.add_parser("launch", help="Execute a reverse traceroute")
     parser_batch = sc.add_parser("batch", help="Execute a batch of reverse traceroutes")
     parser_fetch = sc.add_parser("fetch", help="Fetch reverse traceroutes")
+    parser_print = sc.add_parser("print", help="Print reverse traceroutes from file")
 
     parser_atlas.add_argument(
         "--vp",
@@ -138,6 +139,15 @@ def create_parser():
         help="Json file to store the revtr",
     )
 
+    parser_print.add_argument(
+        "--file",
+        dest="file",
+        action="store",
+        metavar="JSONL",
+        type=pathlib.Path,
+        required=True,
+        help="File containing reverse traceroute JSON (one per line)",
+    )
     return parser
 
 
@@ -185,7 +195,6 @@ def main():
                 json.dump(r, f)
     else:
         raise RuntimeError("Unreachable")
-
     print(json.dumps(r))
 
 
