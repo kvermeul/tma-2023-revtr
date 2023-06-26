@@ -193,6 +193,15 @@ def main():
                 measurement = RevTrMeasurement(revtr, ip2asn, namedb)
                 print(measurement)
             r = ""
+    elif opts.command == "print":
+        with open(opts.file, encoding="utf8") as fd:
+            ip2asn = pyasn.pyasn(str(PYASN_DATA))
+            namedb = asnames.ASNamesDB(ASNAMES_DATA)
+            for line in fd:
+                revtr = json.loads(line.strip())
+                measurement = RevTrMeasurement(revtr, ip2asn, namedb)
+                print(measurement)
+        r = ""
     else:
         raise RuntimeError("Unreachable")
     print(json.dumps(r))
