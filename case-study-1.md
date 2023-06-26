@@ -127,16 +127,90 @@ The `fetch` command prints out the hops on the reverse path, the AS number contr
 
 > This is not specific to PEERING prefixes.  Cloud operators both "groom" bad routing decisions such as these over time by contacting operators and use advanced, dynamic traffic engineering systems to bypass them.
 
-We see that the path from the ISP back to us goes to Zayo, a major Tier-1 network.  Looking at their Looking Glass system provides verifies our diagnosis, as Zayo is choosing a route exported by AS9498:
+We see that the path from the ISP back to us goes to Zayo, a major Tier-1 network.  Looking at their [Looking Glass](https://lg.zayo.com/lg.cgi) system provides verifies our diagnosis, as Zayo is choosing a route exported by AS9498:
 
 ```text
 A V Destination        P Prf   Metric 1   Metric 2  Next hop        AS path
 * ? 184.164.240.0/24   B 170        200                             9498 20473 47065 I
-  unverified                                       >64.125.29.144
-                                                    64.125.26.164
 ```
 
 ## Fixing the Issue
+
+A brute-force approach to try and fix the problem is to now announce the prefix from Delhi.  We have made an announcement from the other five PoPs using prefix `184.164.245.0/24`.  After launching a container, setting the egress to Seattle, and running traceroute towards the destination, we find that performance is as expected:
+
+```bash
+root@c4eb822d61f7:/# traceroute 204.244.0.10
+traceroute to 204.244.0.10 (204.244.0.10), 30 hops max, 60 byte packets
+ 1  184.164.245.254  0.818 ms  0.709 ms  0.644 ms
+ 2  * * *
+ 3  137.220.39.64.vultrusercontent.com  49.616 ms  49.537 ms  49.556 ms
+ 4  * * *
+ 5  100.100.200.1  55.635 ms  55.633 ms  55.645 ms
+ 6  10.66.0.133  50.225 ms  50.619 ms  50.578 ms
+ 7  10.66.1.45  50.334 ms  50.271 ms  50.295 ms
+ 8  4.59.233.49  51.767 ms  49.958 ms  51.722 ms
+ 9  4.69.219.206  50.226 ms  54.206 ms  49.590 ms
+10  64.230.125.230  58.353 ms  52.580 ms  52.547 ms
+11  64.230.79.93  53.217 ms  53.226 ms  53.139 ms
+12  64.230.123.251  52.911 ms  52.873 ms  52.872 ms
+13  204.244.0.10  53.064 ms  52.847 ms  52.846 ms
+```
+
+> Again, note that the 50ms on the first hop is on the PEERING-required OpenVPN tunnel between the server in Texas and the Vultr VM in Seattle.
+
+Pulling the reverse traceroute shows that the reverse path goes straight to Seattle:
+
+```bash
+$ for i in $(seq 0 4) ; do
+    ./rtc.py fetch --label tma_round1_245_$i \
+        | jq -c '.revtrs[] | select( .dst == "204.244.0.10" )'
+  done > out.json
+$ ./rtc.py print --file out.json
+Reverse Traceroute from remote 204.244.0.10 to VP 184.164.245.1
+  204.244.0.10 5071 (WESTEL-1) CA DST_REV_SEGMENT
+  204.244.0.110 5071 (WESTEL-1) CA SPOOF_RR_REV_SEGMENT
+  64.125.0.185 6461 (ZAYO-6461) US SPOOF_RR_REV_SEGMENT
+  64.125.0.216 6461 (ZAYO-6461) US SPOOF_RR_REV_SEGMENT
+  63.223.47.65 3491 (BTN-ASN) US SPOOF_RR_REV_SEGMENT
+  205.177.32.97 3491 (BTN-ASN) US SPOOF_RR_REV_SEGMENT
+  63.223.47.122 3491 (BTN-ASN) US TR_TO_SRC_REV_SEGMENT
+  205.177.32.98 3491 (BTN-ASN) US TR_TO_SRC_REV_SEGMENT
+  69.195.152.146 19969 (JOESDATACENTER) US TR_TO_SRC_REV_SEGMENT
+  184.164.245.1 47065 (PEERING-RESEARCH-TESTBED-USC-UFMG-AS47065) US TR_TO_SRC_REV_SEGMENT
+```
+
+This brute-force approach, however, might lead to poor performance in Asia and Oceania, as we would not have a nearby PoP.  Alternatively, we can try traffic engineering techniques to induce better routing decision from the involved ASes.
+
+One try is to set BGP communities to tune BGP's decision process in remote ASNs.  AS9498 does not seem to have publicly documented BGP communities that we could use.  AS6461 does have [publicly documented BGP communities](https://onestep.net/communities/as6461/), but setting 6461:5060 to lower AS6461's preference for routes from Delhi does not work.  Reasons include intermediate ASes removing the community from the announcement or we not being a direct customer.
+
+Another hack we could try is to poison AS6461, artificially adding it to the announcement's AS-path to trigger BGP loop prevention and cause AS6461 to ignore the route exported from Delhi.  Unfortunately, poisoning Tier-1 ASes usually does not work as most ASes filter routes from customers that traverse Tier-1s as this is usually a sign of a route leak.
+
+Finally, we can try using Vultr's [traffic engineering communities](https://github.com/vultr/vultr-docs/tree/main/faq/as20473-bgp-customer-guide#action-communities) to ask Vultr to *not* export our prefix to AS9498 in Delhi.  This will restrict route propagation for ASes in Asia, and is a trade-off between worsening performance for ASes who would be bette- off using AS9498 vs improving performance for networks that are incorrectly choosing the route to AS9498.  This solution could be a temporary fix until operators are contacted to search for a more definitive solution.
+
+> We add files with lists of Vultr peers per site in the `resources/vultr-peers` folder.  AS numbers are in the first columns, and providers are marked with `100` on the second column.  To not export to a given provider, the community `64600:providerASN` can be used.
+
+We make an announcement using prefix `184.164.254.0/24` containing the community `64600:9498`.  We observe the same performance improvement for the Canadian ISP as above, while still maintaining a presence in Asia by announcing to peers and the second Vultr provider in Delhi.  A forward traceroute shows low latency, and a reverse traceroute indicates the path goes straight to Seattle:
+
+```bash
+Reverse Traceroute from remote 204.244.0.10 to VP 184.164.254.1
+  204.244.0.10 5071 (WESTEL-1) CA DST_REV_SEGMENT
+  204.244.0.110 5071 (WESTEL-1) CA SPOOF_RR_REV_SEGMENT
+  64.125.0.185 6461 (ZAYO-6461) US SPOOF_RR_REV_SEGMENT
+  64.125.0.216 6461 (ZAYO-6461) US SPOOF_RR_REV_SEGMENT
+  63.223.47.65 3491 (BTN-ASN) US SPOOF_RR_REV_SEGMENT
+  205.177.32.97 3491 (BTN-ASN) US SPOOF_RR_REV_SEGMENT
+  63.223.47.126 3491 (BTN-ASN) US TR_TO_SRC_REV_SEGMENT
+  205.177.32.98 3491 (BTN-ASN) US TR_TO_SRC_REV_SEGMENT
+  69.195.152.146 19969 (JOESDATACENTER) US TR_TO_SRC_REV_SEGMENT
+  184.164.254.1 47065 (PEERING-RESEARCH-TESTBED-USC-UFMG-AS47065) US TR_TO_SRC_REV_SEGMENT
+```
+
+Again, querying AS6461's looking glass confirms it is using a more direct route to the prefix:
+
+```text
+A V Destination        P Prf   Metric 1   Metric 2  Next hop        AS path
+* ? 184.164.254.0/24   B 170        100 4294967294                  3356 20473 47065 I
+```
 
 ## Verify if the Issue Persists
 
