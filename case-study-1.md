@@ -6,6 +6,9 @@ After route convergence, the service provider gets performance complaints from a
 
 ## Verifying the Problem
 
+<details>
+  <summary>Solution</summary>
+
 Let's issue pings from Seattle to the destination to verify the problem.
 
 > To simplify things for the large number of PhD Schoo participants, you will not have access to the VMs running on Vultr.  (When using PEERING on your own, you would normally run your own instance on Vultr or elsewhere.)  Instead, we will have access to a server running on a datacenter in Texas.  The server has a somewhat complex network configuration.  To avoid further complexity on the host's network namespace, we will create containers to isolate the additional network configuration needed to run measurements.
@@ -91,7 +94,12 @@ Organization:   Navigata Communications Limited (CANAD-87-Z)
 ...
 ```
 
+</details>
+
 ## Identifying the Root Cause
+
+<details>
+  <summary>Solution</summary>
 
 [Troubleshooting with traceroute](https://www.youtube.com/watch?v=L0RUI5kHzEQ) is tricky.  In our example, we should be mindful that the reported RTT includes the latency on both for forward and reverse paths.  For the 50ms we observe between Texas and Seattle is split 25ms each way because we know the path is symmetric over PEERING's OpenVPN tunnel.  For further hops, however, the reverse path may differ.  For example, the reverse path from hop 9 (`98.124.172.206`) back to `184.164.240.0/24` may be totally different from the reverse path from hop 10 (`64.230.125.232`) back to `184.164.240.0/24`.
 
@@ -161,7 +169,12 @@ A V Destination        P Prf   Metric 1   Metric 2  Next hop        AS path
 * ? 184.164.240.0/24   B 170        200                             9498 20473 47065 I
 ```
 
+</details>
+
 ## Fixing the Issue
+
+<details>
+  <summary>Solution</summary>
 
 A brute-force approach to try and fix the problem is to not announce the prefix from Delhi.  We have made an announcement from the other five PoPs (but not Delhi) using prefix `184.164.245.0/24`.  After launching a container, setting the egress to Seattle, and running traceroute towards the destination, we find that performance is as expected:
 
@@ -242,6 +255,8 @@ Again, querying AS6461's looking glass confirms it is using a more direct route 
 A V Destination        P Prf   Metric 1   Metric 2  Next hop        AS path
 * ? 184.164.254.0/24   B 170        100 4294967294                  3356 20473 47065 I
 ```
+
+</details>
 
 ## Verify if the Issue Persists
 
