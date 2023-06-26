@@ -133,6 +133,10 @@ We can issue a reverse traceroute from the destination to our prefix by using th
 $ ./rtc.py launch --vp 184.164.240.1 --remote 204.244.0.10 --label prefix240_204_244_0_10_c1
 ```
 
+> The `launch` command prints a URL where the results are available, but we suggest you use the `fetch` command (see below) to get the results.
+
+> The `--vp` parameter takes the IP address where the Reverse Traceroute VP is running.  In our deployment we have configured the Reverse Traceroute VP to always the .1 address in the prefix.
+
 > Reverse traceroute measurements are grouped by labels.  It will be easiest for you to create a new label for each group of measurements you launch, as the `fetch` command will output all measurements with the label.  Reusing labels will just add new measurements to an existing group, possibly making it confusing.
 
 The reverse traceroute takes a while to complete.  We can fetch it with the following command.  Check that the `status` of the traceroute is `COMPLETED`.
