@@ -35,11 +35,15 @@ def main():
     revtrs = [r for r in revtrs if r["stopReason"] != "FAILED"]
     logging.info("Got %d successfull RevTrs", len(revtrs))
 
+    # revtrs = [r for r in revtrs if str(r["dst"]) == "204.244.0.10"]
+
     ip2asn = pyasn.pyasn(str(PYASN_DATA))
     namedb = asnames.ASNamesDB(ASNAMES_DATA)
 
-    rtr = RevTrMeasurement(revtrs[2], ip2asn, namedb)
-    print(rtr)
+    for i in range(100, len(revtrs)):
+        rtr = RevTrMeasurement(revtrs[i], ip2asn, namedb)
+        print(rtr)
+        sys.stdin.readline()
 
 
 
