@@ -128,15 +128,15 @@ def create_parser():
         default=False,
         help="Print reverse traceroute on screen",
     )
-
     parser_fetch.add_argument(
         "--file",
         dest="file",
         action="store",
         metavar="PATH",
         type=pathlib.Path,
-        required=True,
-        help="Json file to store the revtr",
+        required=False,
+        help="JSON file to store the measurements [None]",
+        default=None,
     )
 
     parser_print.add_argument(
@@ -183,6 +183,9 @@ def main():
         r = api.batch(pairs, opts.label)
     elif opts.command == "fetch":
         r = api.fetch(opts.label)
+        if opts.file:
+            with open(opts.file, "w", encoding="utf8") as fd:
+                json.dump(r, fd)
         if opts.print:
             ip2asn = pyasn.pyasn(str(PYASN_DATA))
             namedb = asnames.ASNamesDB(ASNAMES_DATA)
@@ -190,9 +193,6 @@ def main():
                 measurement = RevTrMeasurement(revtr, ip2asn, namedb)
                 print(measurement)
             r = ""
-        elif opts.file:
-            with open(opts.file, "w") as f:
-                json.dump(r, f)
     else:
         raise RuntimeError("Unreachable")
     print(json.dumps(r))
