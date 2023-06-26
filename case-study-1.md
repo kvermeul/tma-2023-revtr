@@ -220,4 +220,6 @@ The measurements above were run Saturday, June 24th 2023.  We can re-run the mea
 
 Below are some other similar cases of bad routing arising from anycast:
 
-* **TODO** Additional examples
+* A German ISP operating IP 37.251.238.254 is experiencing a similar problem to that of the Canadian ISP: Performance is very poor toward services hosted in the anycast `184.164.240.0/24` prefix.
+
+* An ISP in the Philippines operating IP 210.213.131.117 is experiencing high delays to services running on the anycast `184.164.240.9/24` prefix.
