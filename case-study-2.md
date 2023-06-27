@@ -28,6 +28,8 @@ Second, we need to start `tcpdump` instances to monitor where the ICMP echo resp
 
 Third, we can launch [Verfploeter][verfploeter] to measure the catchments toward a set of around 15300 select destinations covering prefixes hosting many end users:
 
+[verfploeter]: https://ant.isi.edu/software/verfploeter/
+
 ```bash
 ~client/utils/measure-catchments$ ./launch-pinger.sh \
     -i 184.164.240.99 -I 240 \
