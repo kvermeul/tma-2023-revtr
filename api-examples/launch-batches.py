@@ -12,11 +12,11 @@ from revtr import RevTrApi
 
 
 DEFAULT_APIKEY_FILE = pathlib.Path("~/.config/revtr.apikey").expanduser()
-DEFAULT_PREFIXES_FILE = pathlib.Path("./prefixes.txt").absolute()
+DEFAULT_PREFIXES_FILE = pathlib.Path("../resources/prefixes.txt").absolute()
 DEFAULT_SLEEP_INTERVAL = 5
 BATCH_SIZE = 1000
-ROUND_NUMBER = 1
-LAST_ROUND = 1
+ROUND_NUMBER = 2
+LAST_ROUND = 2
 
 
 def main():
@@ -39,7 +39,7 @@ def main():
         prefixes = [IPv4Network(n.strip()) for n in fd.readlines() if n[0] != "#"]
     logging.info("Read %d prefixes", len(prefixes))
 
-    with open("resources/5000-targets.txt", encoding="utf8") as fd:
+    with open("../resources/5000-targets.txt", encoding="utf8") as fd:
         targets = [IPv4Address(n.strip()) for n in fd.readlines() if n[0] != "#"]
     logging.info("Read %d targets", len(targets))
 
@@ -56,7 +56,7 @@ def main():
                 api.batch(pairs, f"tma_round{ROUND_NUMBER}_{octet}_{i}")
             except requests.HTTPError as e:
                 logging.warning(
-                    "Launching batch %s failed: %s", f"tma_round1_{octet}_{i}", str(e)
+                    "Launching batch %s failed: %s", f"tma_round{ROUND_NUMBER}_{octet}_{i}", str(e)
                 )
             i += 1
 
