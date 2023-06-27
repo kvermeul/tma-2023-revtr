@@ -2,7 +2,7 @@
 
 In this case study we again consider a service hosted on Vultr using prefix `184.164.240.0/24`.  We anycast the prefix `184.164.240.0/24` from six Vultr PoPs in an attempt to improve performance globally: Amsterdam, Tokyo, Seattle, São Paulo, Delhi, and Miami.
 
-An important concept when dealing with anycast announcements it the *catchment* of each PoP, defined as the set of remote destinations that are routed back to each PoP.  After we make the anycast announcement and measure the catchments, we observe that remote endpoints are not distributed as we would like across our PoPs.
+An important concept when dealing with anycast announcements is the *catchment* of each PoP, defined as the set of remote destinations that are routed back to each PoP.  After we make the anycast announcement and measure the catchments, we observe that remote endpoints are not distributed as we would like across our PoPs.
 
 > In practice, a content provider or CDN considers network (latency and bandwidth) and compute (CPUs, memory, and storage) capacity constraints when configuring their traffic engineering systems.  Content providers and CDNs can also employ DNS-based redirection on unicast prefixes (or not so broadly anycast prefixes) to steer clients toward the intended PoPs.
 
@@ -18,7 +18,7 @@ First we need to make sure to configure an egress for the `.99` IP:
 ~/tutorial/scripts$ ./set-egress.sh -i 184.164.240.99 -e amsterdam
 ```
 
-> Here, we're using `184.164.240.0/24` as that is the anycast prefix.  You may need to change it to whatever prefix you're interested in.  When measuring catchments, the egress mux (`amsterdam` in this case) is not important: any egress will do just fine.  What we really care about is the interface where the ICMP echo replies are received.
+> Here, we're using `184.164.240.0/24` as that is the anycast prefix.  You may need to change it to whatever prefix you're interested in.  When measuring catchments, the egress PoP (`amsterdam` in this case) is not important: any egress will do just fine.  What we really care about is the interface where the ICMP echo replies are received.
 
 Second, we need to start `tcpdump` instances to monitor where the ICMP echo responses will be received:
 
@@ -31,7 +31,7 @@ Third, we can launch [Verfploeter][verfploeter] to measure the catchments toward
 [verfploeter]: https://ant.isi.edu/software/verfploeter/
 
 ```bash
-~client/utils/measure-catchments$ ./launch-pinger.sh \
+~/client/utils/measure-catchments$ ./launch-pinger.sh \
     -i 184.164.240.99 -I 240 \
     -t ~/tutorial/resources/15300-top-rsd-ingresses.txt -I 240
 ```
@@ -39,13 +39,13 @@ Third, we can launch [Verfploeter][verfploeter] to measure the catchments toward
 After the catchment measurement finishes, let's kill the `tcpdump` instances launched in step 2 to free up resources:
 
 ```bash
-~client/utils/measure-catchments$ ./kill-tcpdump.sh -f dumps_240/pids.txt
+~/client/utils/measure-catchments$ ./kill-tcpdump.sh -f dumps_240/pids.txt
 ```
 
 With the measurements collected, we can now get an approximation of the catchment sizes.  The script shows the PoP, number of received ICMP replies, and relative fraction of ICMP replies:
 
 ```bash
-~client/utils/measure-catchments$ ./approximate-catchments.sh -I 240 -d dumps_240
+~/client/utils/measure-catchments$ ./approximate-catchments.sh -I 240 -d dumps_240
 dumps_240/seattle.tap20.pcap 894 10%
 dumps_240/amsterdam.tap1.pcap 1626 19%
 dumps_240/tokyo.tap26.pcap 734 8%
@@ -56,7 +56,7 @@ dumps_240/saopaulo.tap19.pcap 1582 19%
 
 ## Identifying Upstreams Attracting Traffic
 
-The catchment size approximations above indicate that load may not match our expectations.  In particular, Sao Paulo is catching 19% of the destinations while Delhi is catching 23% of the destinations.  We may want to reduce these fractions, for example due to capacity constraints at these sides.
+The catchment size approximations above indicate that load may not match our expectations.  In particular, São Paulo is catching 19% of the destinations while Delhi is catching 23% of the destinations.  We may want to reduce these fractions, for example due to capacity constraints at these sides.
 
 In an attempt to reduce a PoP's catchment, we can attempt to constrain the propagation of the BGP announcement we make to it.  Unfortunately, catchment sizes are coarse grained and do not provide enough information for targeted traffic engineering.  Without additional information we could, for example, stop announcing from a PoP (so it attracts no traffic), which is likely undesirable.  We could also make the BGP AS-path of announcements from a PoP  artificially longer to make its routes less preferable than (shorter) routes to other PoPs, a technique known as BGP prepending.
 
@@ -119,7 +119,7 @@ The `provider-catchments.py` script shows, for each identified Vultr upstream, i
 >
 > An AS may provide transit to Vultr on multiple PoPs.  A provider's catchment above add up routes toward any Vultr PoP.
 >
-> The PoP catchments are measured with pings, which has broader coverage.  The the provider catchments, however, are estimated with the reverse traceroutes, which may be biased toward networks with better coverage.
+> The PoP catchments are measured with pings, which has broader coverage.  The provider catchments, however, are estimated with the reverse traceroutes, which may be biased toward networks with better coverage.
 
 With the knowledge of which providers are carrying the most traffic, we can use Vultr traffic engineering communities from specific muxes to steer traffic away from specific PoPs.  To do this, we need to check the providers for each Vultr PoP, which we have made available under `~/tutorial/resources/vultr-peers`.  The first column in each file shows a Vultr peer AS, and the second number its class.  A number of 100 in the second column indicates that the AS is a transit provider, which we can then use with Vultr's BGP communities to manipulate announcement propagation.  (Documentation for other peer types is in Vultr [BGP community guide][vultr-bgp-communities].)
 
@@ -168,7 +168,7 @@ Again, issuing reverse traceroutes to the `184.164.250.0/24` prefix provides som
 ```
 
 We see that Cogent (AS174) is less prevalent than before, likely because its (longer) route to São Paulo attracts less traffic.  We observe, however, that
-Bharti Airtel (AS9498) remains prevalent even after the prepending.  This may be because Bharti Airtel may be customers of other Tier-1 networks, which would choose routes from Bharti Airtel regardless of AS-path length.  (Remember that BGP's first criterion for choosing routes is LocalPref, usually configured such that routes from customers are preferred over routes from peers, regardless of AS-path length.)  Again, we can verify this is the case by inspecting some reverse traceroutes.  Here are examples of two Tier-1 networks choosing routes to Bharti Airtel after we perform the prepend:
+Bharti Airtel (AS9498) remains prevalent even after the prepending.  This may be because Bharti Airtel may be customers of other Tier-1 networks, which would choose routes from Bharti Airtel regardless of AS-path length.  (Remember that BGP's first criterion for choosing routes is LocalPref, usually configured such that routes from customers are preferred over routes from peers, regardless of AS-path length.)  Again, we can verify this is the case by inspecting some reverse traceroutes.  Here are examples of two Tier-1 networks choosing routes to Bharti Airtel after we prepend the AS-path:
 
 ```text
 Reverse Traceroute from remote 195.66.225.104 to VP 184.164.250.1
@@ -211,7 +211,7 @@ dumps_round2_249/miami.tap14.pcap 1979 24%
 dumps_round2_249/seattle.tap20.pcap 989 12%
 ```
 
-Prepending to all ASes at São Paulo (`184.164.249.0/24`) may be effective because the local IXP (IX.br/SP) has the highest number of members across all ISPs in the world, with more than 2000 members.  The global prepending would make all their routes less attractive, causing an impact at the longer tail.  Again, reverse traceroute provides confirmation that some of the routes reach São Paulo through IX.br/SP:
+Prepending to all ASes at São Paulo (`184.164.249.0/24`) may be effective because the local IXP (IX.br/SP) has the highest number of members across all ISPs in the world, with more than 2000 members.  The global prepending would make all their routes less attractive, causing an impact at the longer tail.  Again, reverse traceroute provides confirmation that some routes reach São Paulo through IX.br/SP:
 
 ```text
 Reverse Traceroute from remote 191.240.111.122 to VP 184.164.250.1
@@ -237,7 +237,7 @@ Where we can identify that IX.br/SP was traversed as `187.16.208.0/20` is the [p
 
 Finally, prepending to all peers at Delhi is not effective.  One possible explanation is that Vultr may have few peers in Delhi, which leads to most traffic arriving at Delhi through Bharti Airtel, so prepending has limited effect as there are fewer competing routes converging on Delhi.
 
-# Try it Yourself
+## Try it Yourself
 
 You can decide on your own load distribution goals and decide which announcements would be useful towards achieving them.  After deploying your announcements, you can measure catchments and use Reverse Traceroute to investigate whether your announcements had the desired effect.  Multiple iterations may be needed until you find a reasonable configuration.
 
