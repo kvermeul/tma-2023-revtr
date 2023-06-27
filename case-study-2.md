@@ -10,7 +10,7 @@ As we lack empirical information to inform a realistic target load distribution,
 
 ## Measuring Catchments
 
-We have prepared scripts to measure catchments using pings inside [`client/utils/measure-catchments`][peering-measure-catchments].  The [README] details how to use the scripts.  In this tutorial, we should use the source IP ending in `.99` inside the prefix we want to measure the catchment of.
+We have prepared scripts to measure catchments using pings inside [`client/utils/measure-catchments`][peering-measure-catchments].  In this tutorial, we should use the source IP ending in `.99` inside the prefix we want to measure the catchment of.
 
 First we need to make sure to configure an egress for the `.99` IP:
 
@@ -113,11 +113,127 @@ The `provider-catchments.py` script shows, for each identified Vultr upstream, i
 9498 619 28.499% (BBIL-AP)
 ```
 
+> Please note that the provider catchments (directly above) are not directly comparable to the PoP catchments (further up).  Reasons include:
+>
+> An AS may provide transit to Vultr on multiple PoPs.  A provider's catchment above add up routes toward any Vultr PoP.
+>
+> The PoP catchments are measured with pings, which has broader coverage.  The the provider catchments, however, are estimated with the reverse traceroutes, which may be biased toward networks with better coverage.
+
 With the knowledge of which providers are carrying the most traffic, we can use Vultr traffic engineering communities from specific muxes to steer traffic away from specific PoPs.  To do this, we need to check the providers for each Vultr PoP, which we have made available under `~/tutorial/resources/vultr-peers`.  The first column in each file shows a Vultr peer AS, and the second number its class.  A number of 100 in the second column indicates that the AS is a transit provider, which we can then use with Vultr's BGP communities to manipulate announcement propagation.  (Documentation for other peer types is in Vultr [BGP community guide][vultr-bgp-communities].)
 
 ## Attempting to Balance Traffic
 
-Given the results above, a first attempt to balance load is to prepend to Cogent (AS174) at São Paulo and to Bharti Airtel (AS9498) at Delhi.
+Given the results above, a first attempt to balance load is to prepend to Cogent (AS174) at São Paulo and to Bharti Airtel (AS9498) at Delhi.  We can do this by attaching community `64603:174` to the announcement from São Paulo and  community `64603:9498` to the announcement from Delhi.  We make this change to the announcement for `184.164.250.0/24`.  After changing the announcement, we need to perform the following four steps before issuing new reverse traceroute measurements:
 
-[peering-measure-catchments]: TODO
+1. Wait about 5 minutes for BGP convergence
+2. Reset the Reverse Traceroute atlas toward the vantage point by running `./rtc.py atlas --reset`
+3. Trigger rebuilding of the atlas by running `./rtc.py atlas --rebuild`
+4. Wait for the atlas to be rebuilt (takes about 40 minutes)
+
+Prepending to Cogent and Bharti Airtel does shift some traffic away from São Paulo and Delhi, leading to a somewhat more balanced load distribution.  Here is what the catchments look like:
+
+```bash
+# Prefix 250: Prepend to Cogent at São Paulo and Bharti Airtel at Delhi
+~/client/utils/measure-catchments$ ./approximate-catchments.sh -d dumps_round2_250 -I 250
+dumps_round2_250/saopaulo.tap19.pcap 2670 16%
+dumps_round2_250/delhi.tap6.pcap 3201 19%
+dumps_round2_250/tokyo.tap26.pcap 1594 9%
+dumps_round2_250/miami.tap14.pcap 3338 20%
+dumps_round2_250/amsterdam.tap1.pcap 3520 21%
+dumps_round2_250/seattle.tap20.pcap 1985 12%
+```
+
+Again, issuing reverse traceroutes to the `184.164.250.0/24` prefix provides some insight on what may be going on.  Here is a look at the provider catchments:
+
+```bash
+# Prefix 250: Prepend to Cogent at São Paulo and Bharti Airtel at Delhi
+~/tutorial/api-examples$ ./provider-catchments.py ../data/tma_round2_250_*
+...
+11537 14 0.669% (INTERNET2-RESEARCH-EDU)
+64049 21 1.003% (RJIPL-SG)
+201011 21 1.003% (CORE-BACKBONE)
+174 26 1.242% (COGENT-174)
+3257 29 1.386% (GTT-BACKBONE)
+7922 31 1.481% (COMCAST-7922)
+6453 41 1.959% (AS6453)
+6939 62 2.962% (HURRICANE)
+6057 87 4.157% (Administracion Nacional de Telecomunicaciones)
+1299 129 6.163% (TWELVE99 Arelion, fka Telia Carrier)
+3491 135 6.450% (BTN-ASN)
+2914 223 10.655% (NTT-LTD-2914)
+3356 486 23.220% (LEVEL3)
+9498 512 24.462% (BBIL-AP)
+```
+
+We see that Cogent (AS174) is less prevalent than before, likely because its (longer) route to São Paulo attracts less traffic.  We observe, however, that
+Bharti Airtel (AS9498) remains prevalent even after the prepending.  This may be because Bharti Airtel may be customers of other Tier-1 networks, which would choose routes from Bharti Airtel regardless of AS-path length.  (Remember that BGP's first criterion for choosing routes is LocalPref, usually configured such that routes from customers are preferred over routes from peers, regardless of AS-path length.)  Again, we can verify this is the case by inspecting some reverse traceroutes.  Here are examples of two Tier-1 networks choosing routes to Bharti Airtel after we perform the prepend:
+
+```text
+Reverse Traceroute from remote 195.66.225.104 to VP 184.164.250.1
+  195.66.225.104 3491 (BTN-ASN) US DST_REV_SEGMENT
+  64.125.0.161 6461 (ZAYO-6461) US SPOOF_RR_REV_SEGMENT
+  10.187.33.9 None (None) None TR_TO_SRC_REV_SEGMENT_BETWEEN
+  94.31.41.45 6461 (ZAYO-6461) US TR_TO_SRC_REV_SEGMENT_BETWEEN
+  64.125.29.85 6461 (ZAYO-6461) US TR_TO_SRC_REV_SEGMENT_BETWEEN
+  64.125.27.15 6461 (ZAYO-6461) US TR_TO_SRC_REV_SEGMENT_BETWEEN
+  94.31.40.5 6461 (ZAYO-6461) US TR_TO_SRC_REV_SEGMENT_BETWEEN
+  182.79.141.130 None (None) None TR_TO_SRC_REV_SEGMENT_BETWEEN
+  122.184.140.154 9498 (BBIL-AP) IN TR_TO_SRC_REV_SEGMENT_BETWEEN
+  69.195.152.146 19969 (JOESDATACENTER) US TR_TO_SRC_REV_SEGMENT_BETWEEN
+  184.164.250.1 47065 (PEERING-RESEARCH-TESTBED-USC-UFMG-AS47065) US TR_TO_SRC_REV_SEGMENT_BETWEEN
+Reverse Traceroute from remote 187.251.2.4 to VP 184.164.250.1
+  187.251.2.4 32098 (TRANSTELCO-INC) US DST_REV_SEGMENT
+  201.174.255.33 32098 (TRANSTELCO-INC) US SPOOF_RR_REV_SEGMENT
+  201.174.250.169 32098 (TRANSTELCO-INC) US TR_TO_SRC_REV_SEGMENT
+  201.174.255.32 32098 (TRANSTELCO-INC) US TR_TO_SRC_REV_SEGMENT
+  206.223.123.11 None (None) None TR_TO_SRC_REV_SEGMENT
+  202.84.253.85 4637 (ASN-TELSTRA-GLOBAL) HK TR_TO_SRC_REV_SEGMENT
+  202.84.224.190 4637 (ASN-TELSTRA-GLOBAL) HK TR_TO_SRC_REV_SEGMENT
+  210.57.30.87 4637 (ASN-TELSTRA-GLOBAL) HK TR_TO_SRC_REV_SEGMENT
+  116.119.55.164 9498 (BBIL-AP) IN TR_TO_SRC_REV_SEGMENT
+  122.184.140.154 9498 (BBIL-AP) IN TR_TO_SRC_REV_SEGMENT
+  69.195.152.146 19969 (JOESDATACENTER) US TR_TO_SRC_REV_SEGMENT
+  184.164.250.1 47065 (PEERING-RESEARCH-TESTBED-USC-UFMG-AS47065) US TR_TO_SRC_REV_SEGMENT
+```
+
+In an attempt to shift even more traffic away from São Paulo and Delhi, we can prepend to *all* Vultr peers at these PoPs by attaching community `20473:6003` to their announcements.  We make this change to the announcement for `184.164.249.0/24`.  After performing the four steps above, we find that prepending to all peers is effective in shifting more traffic away from São Paulo, but not Delhi:
+
+```bash
+# Prefix 249: Prepend to all peers at São Paulo and Delhi
+~/client/utils/measure-catchments$ ./approximate-catchments.sh -d dumps_round2_249 -I 249
+dumps_round2_249/saopaulo.tap19.pcap 976 11%
+dumps_round2_249/amsterdam.tap1.pcap 1867 22%
+dumps_round2_249/tokyo.tap26.pcap 798 9%
+dumps_round2_249/delhi.tap6.pcap 1612 19%
+dumps_round2_249/miami.tap14.pcap 1979 24%
+dumps_round2_249/seattle.tap20.pcap 989 12%
+```
+
+Prepending to all ASes at São Paulo (`184.164.249.0/24`) may be effective because the local IXP (IX.br/SP) has the highest number of members across all ISPs in the world, with more than 2000 members.  The global prepending would make all their routes less attractive, causing an impact at the longer tail.  Again, reverse traceroute provides confirmation that some of the routes reach São Paulo through IX.br/SP:
+
+```text
+Reverse Traceroute from remote 191.240.111.122 to VP 184.164.250.1
+  191.240.111.122 28202 (Rede Brasileira de Comunicacao SA) BR DST_REV_SEGMENT
+  191.53.4.228 28202 (Rede Brasileira de Comunicacao SA) BR SPOOF_RR_REV_SEGMENT
+  172.25.16.1 None (None) None SPOOF_RR_REV_SEGMENT
+  187.16.216.221 None (None) None SPOOF_RR_REV_SEGMENT
+  216.238.96.7 20473 (AS-CHOOPA) US SPOOF_RR_REV_SEGMENT
+  179.31.59.230 6057 (Administracion Nacional de Telecomunicaciones) UY TR_TO_SRC_REV_SEGMENT_BETWEEN
+  179.31.62.131 6057 (Administracion Nacional de Telecomunicaciones) UY TR_TO_SRC_REV_SEGMENT_BETWEEN
+  179.31.62.41 6057 (Administracion Nacional de Telecomunicaciones) UY TR_TO_SRC_REV_SEGMENT_BETWEEN
+  179.31.62.50 6057 (Administracion Nacional de Telecomunicaciones) UY TR_TO_SRC_REV_SEGMENT_BETWEEN
+  179.31.62.19 6057 (Administracion Nacional de Telecomunicaciones) UY TR_TO_SRC_REV_SEGMENT_BETWEEN
+  187.16.221.67 None (None) None TR_TO_SRC_REV_SEGMENT_BETWEEN
+  187.16.214.112 None (None) None TR_TO_SRC_REV_SEGMENT_BETWEEN
+  69.195.152.146 19969 (JOESDATACENTER) US TR_TO_SRC_REV_SEGMENT_BETWEEN
+  184.164.250.1 47065 (PEERING-RESEARCH-TESTBED-USC-UFMG-AS47065) US TR_TO_SRC_REV_SEGMENT_BETWEEN
+```
+
+Where we can identify that IX.br/SP was traversed as `187.16.208.0/20` is the [prefix assigned to members in its layer-2 fabric][peeringdb-ixbr-sp].
+
+[peeringdb-ixbr-sp]: https://www.peeringdb.com/ix/171
+
+Finally, prepending to all peers at Delhi is not effective.  One possible explanation is that Vultr may have few peers in Delhi, which leads to most traffic arriving at Delhi through Bharti Airtel, so prepending has limited effect as there are fewer competing routes converging on Delhi.
+
+[peering-measure-catchments]: https://github.com/PEERINGTestbed/client/tree/master/utils/measure-catchments
 [vultr-bgp-communities]: https://github.com/vultr/vultr-docs/tree/main/faq/as20473-bgp-customer-guide#action-communities
