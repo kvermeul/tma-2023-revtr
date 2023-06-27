@@ -235,5 +235,9 @@ Where we can identify that IX.br/SP was traversed as `187.16.208.0/20` is the [p
 
 Finally, prepending to all peers at Delhi is not effective.  One possible explanation is that Vultr may have few peers in Delhi, which leads to most traffic arriving at Delhi through Bharti Airtel, so prepending has limited effect as there are fewer competing routes converging on Delhi.
 
+# Try it Yourself
+
+You can decide on your own load distribution goals and decide which announcements would be useful towards achieving them.  After deploying your announcements, you can measure catchments and use Reverse Traceroute to investigate whether your announcements had the desired effect.  Multiple iterations may be needed until you find a reasonable configuration.
+
 [peering-measure-catchments]: https://github.com/PEERINGTestbed/client/tree/master/utils/measure-catchments
 [vultr-bgp-communities]: https://github.com/vultr/vultr-docs/tree/main/faq/as20473-bgp-customer-guide#action-communities
